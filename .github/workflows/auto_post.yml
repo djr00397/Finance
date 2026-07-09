@@ -1,49 +1,21 @@
-name: Financial Blog Auto Poster
-
+name: Auto Post
 on:
   schedule:
     - cron: '0 * * * *'
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install Dependencies
-        run: |
-          pip install -r requirements.txt
-
-      - name: Run Auto Poster Script
+      - uses: actions/checkout@v3
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Run
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
           BLOG_ID: ${{ secrets.BLOG_ID }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python main.py
-
-      - name: Commit state.json
-        run: |
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "actions@github.com"
-          # ফাইলটি আছে কি না চেক করে তারপর অ্যাড করবে
-          if [ -f state.json ]; then
-            git add state.json
-            git commit -m "Update state after posting"
-            git push
-          else
-            echo "state.json not found, skipping commit."
-          fi
-          
+        
