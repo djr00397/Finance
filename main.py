@@ -7,46 +7,58 @@ from googleapiclient.discovery import build
 
 def main():
     # কনফিগারেশন
-    CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
-    CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
-    REFRESH_TOKEN = os.environ.get("GOOGLE_REFRESH_TOKEN")
-    BLOG_ID = os.environ.get("BLOG_ID")
-    OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+    CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+    CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+    REFRESH_TOKEN = os.environ.get("GOOGLE_REFRESH_TOKEN", "").strip()
+    BLOG_ID = os.environ.get("BLOG_ID", "").strip()
+    OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
 
+    # আপনার ওয়েবসাইটের মেনু বাটন (এই নামগুলো ব্লগারে ক্যাটাগরি হিসেবে থাকবে)
     CATEGORIES = ["Credit Cards", "Loans", "Banking", "Investing", "Insurance", "Taxes", "Personal Finance"]
+    
+    # ধারাবাহিকভাবে ক্যাটাগরি নির্বাচনের লজিক (প্রতি ঘন্টায় একটি)
     category = CATEGORIES[datetime.datetime.now().hour % len(CATEGORIES)]
 
-    # ১. কন্টেন্ট জেনারেশন (SEO Optimized)
+    # ভাইরাল টপিক ও এসইও করার জন্য শক্তিশালী প্রম্পট
     prompt = f"""
-    Act as a Financial Expert. Write a professional, SEO-optimized blog post in HTML format for the category: {category}.
-    Title: Create a unique, trending title.
-    Content: 500+ words, use <h2> and <h3> for subheadings, include real-world financial examples.
-    End: Add 3 Multiple Choice Questions (MCQs) for engagement.
-    SEO: Include Meta Description, Keywords.
-    Output: Return ONLY a valid JSON object with keys: "title", "content", "meta_description".
+    You are a world-class Financial Master. Write a blog post for the category '{category}'.
+    1. VIRAL TOPIC: Choose a current trending or viral topic within '{category}'.
+    2. SEO TITLE: Create a highly clickable, viral SEO title that grabs attention.
+    3. SEO CONTENT: Write 600 words. Use H2 and H3 for easy scanning.
+    4. AD-FRIENDLY: Keep wide spacing between paragraphs for Google Auto Ads.
+    5. ENGAGEMENT: Add exactly 3 Multiple Choice Questions (MCQs) at the end.
+    6. FORMAT: Output ONLY in JSON format: {{"title": "...", "content": "...", "meta_description": "..."}}
     """
     
     headers = {"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"}
-    resp = requests.post("https://openrouter.ai/api/v1/chat/completions", 
-        headers=headers, json={"model": "meta-llama/llama-3-8b-instruct", "messages": [{"role": "user", "content": prompt}]})
     
-    # JSON Parsing
-    content_text = resp.json()['choices'][0]['message']['content'].strip()
-    data = json.loads(content_text)
+    # এআই কল
+    resp = requests.post("https://openrouter.ai/api/v1/chat/completions", 
+        headers=headers, 
+        json={"model": "meta-llama/llama-3-8b-instruct", "messages": [{"role": "user", "content": prompt}]}
+    )
+    
+    if resp.status_code != 200:
+        print(f"Error: {resp.text}")
+        return
 
-    # ২. ব্লগার API কানেকশন
+    # JSON ডাটা এক্সট্রাক্ট করা
+    text = resp.json()['choices'][0]['message']['content'].strip()
+    start, end = text.find('{'), text.rfind('}') + 1
+    data = json.loads(text[start:end])
+
+    # ব্লগার এপিআই কানেকশন
     creds = Credentials(None, refresh_token=REFRESH_TOKEN, client_id=CLIENT_ID, client_secret=CLIENT_SECRET, token_uri="https://oauth2.googleapis.com/token")
     service = build('blogger', 'v3', credentials=creds)
     
-    # ৩. পোস্ট পাবলিশিং
-    post_body = {
+    # পোস্ট পাবলিশিং (আপনার মেনু বাটন অনুযায়ী লেবেল যোগ করা হলো)
+    service.posts().insert(blogId=BLOG_ID, body={
         "title": data['title'],
-        "content": f"<div>{data['content']}</div><br><hr><p>SEO Meta: {data['meta_description']}</p>",
-        "labels": [category]
-    }
+        "content": f"{data['content']}<br><br><small>SEO Meta: {data['meta_description']}</small>",
+        "labels": [category] # এটা আপনার মেনু বাটনের সাথে হুবহু মিলে যাবে
+    }).execute()
     
-    result = service.posts().insert(blogId=BLOG_ID, body=post_body).execute()
-    print(f"Success! Post URL: {result.get('url')}")
+    print(f"Successfully posted to {category}!")
 
 if __name__ == "__main__":
     main()
